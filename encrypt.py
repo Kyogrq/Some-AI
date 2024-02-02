@@ -7,53 +7,46 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neural_network import MLPRegressor
 
-class UltimateDecrypter:
+class UltimateEncrypter:
     def __init__(self, key):
         self.key = hashlib.sha512(key.encode()).digest()
 
-    def decrypt_aes(self, iv, ct):
+    def encrypt_aes(self, data):
         backend = default_backend()
-        iv = base64.b64decode(iv)
+        iv = base64.b64encode(np.random.bytes(16))
         cipher = Cipher(algorithms.AES(self.key), modes.CFB(iv), backend=backend)
-        decryptor = cipher.decryptor()
-        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        pt = unpadder.update(decryptor.update(ct)) + unpadder.finalize()
-        return pt.decode('utf-8')
+        encryptor = cipher.encryptor()
+        padder = padding.PKCS7(algorithms.AES.block_size).padder()
+        padded_data = padder.update(data.encode()) + padder.finalize()
+        ct = encryptor.update(padded_data) + encryptor.finalize()
+        return iv, ct
 
-    def decrypt_ml(self, encrypted_data):
+    def encrypt_ml(self, data):
         scaler = MinMaxScaler()
-        X = np.array([ord(char) for char in encrypted_data]).reshape(-1, 1)
+        X = np.array([ord(char) for char in data]).reshape(-1, 1)
         scaler.fit(X)
         X_scaled = scaler.transform(X)
         reg = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=2000, random_state=42)
         reg.fit(X_scaled, X_scaled)
-        decrypted_data = reg.predict(X_scaled)
-        return ''.join([chr(int(round(x[0]))) for x in scaler.inverse_transform(decrypted_data)])
+        encrypted_data = reg.predict(X_scaled)
+        return ''.join([chr(int(round(x[0]))) for x in scaler.inverse_transform(encrypted_data)])
 
-    def transposition_decipher(self, ciphertext, key):
-        num_of_columns = int(np.ceil(len(ciphertext) / key))
-        num_of_rows = key
-        num_of_shaded_boxes = (num_of_columns * num_of_rows) - len(ciphertext)
-        plaintext = [''] * num_of_columns
-        col = 0
-        row = 0
-        for symbol in ciphertext:
-            plaintext[col] += symbol
-            col += 1
-            if (col == num_of_columns) or (col == num_of_columns - 1 and row >= num_of_rows - num_of_shaded_boxes):
-                col = 0
-                row += 1
-        return ''.join(plaintext)
+    def transposition_cipher(self, plaintext, key):
+        ciphertext = [''] * key
+        for col in range(key):
+            pointer = col
+            while pointer < len(plaintext):
+                ciphertext[col] += plaintext[pointer]
+                pointer += key
+        return ''.join(ciphertext)
 
-key = input("Enter decryption key: ")
-iv = input("Enter AES IV: ")
-ct = base64.b64decode(input("Enter AES Ciphertext: "))
-decrypter = UltimateDecrypter(key)
-aes_decrypted_text = decrypter.decrypt_aes(iv, ct)
-print("AES Decrypted Text:", aes_decrypted_text)
-encrypted_text = input("Enter ML Encrypted Text: ")
-ml_decrypted_text = decrypter.decrypt_ml(encrypted_text)
-print("ML Decrypted Text:", ml_decrypted_text)
-transposition_encrypted_text = input("Enter Transposition Encrypted Text: ")
-transposition_decrypted_text = decrypter.transposition_decipher(transposition_encrypted_text, len(key))
-print("Transposition Decrypted Text:", transposition_decrypted_text)
+key = input("Enter encryption key: ")
+text = input("Enter text to encrypt: ")
+encrypter = UltimateEncrypter(key)
+iv, ct = encrypter.encrypt_aes(text)
+print("AES IV:", iv.decode())
+print("AES Ciphertext:", base64.b64encode(ct).decode())
+encrypted_text = encrypter.encrypt_ml(text)
+print("ML Encrypted Text:", encrypted_text)
+transposition_encrypted_text = encrypter.transposition_cipher(text, len(key))
+print("Transposition Encrypted Text:", transposition_encrypted_text)
